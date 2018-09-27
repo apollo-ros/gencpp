@@ -8,6 +8,9 @@ set(GENCPP_BIN "${gencpp_DIR}/../../../@(CATKIN_PACKAGE_BIN_DESTINATION)/gen_cpp
 set(GENCPP_TEMPLATE_DIR "${gencpp_DIR}/..")
 @[end if]@
 
+find_package(Protobuf REQUIRED)
+set(GENCPP_PROTO_BIN ${PROTOBUF_PROTOC_EXECUTABLE})
+
 # Generate .msg->.h for cpp
 # The generated .h files should be added ALL_GEN_OUTPUT_FILES_cpp
 macro(_generate_msg_cpp ARG_PKG ARG_MSG ARG_IFLAGS ARG_MSG_DEPS ARG_GEN_OUTPUT_DIR)
@@ -55,6 +58,38 @@ endmacro()
 #gencpp uses the same program to generate srv and msg files, so call the same macro
 macro(_generate_srv_cpp ARG_PKG ARG_SRV ARG_IFLAGS ARG_MSG_DEPS ARG_GEN_OUTPUT_DIR)
   _generate_msg_cpp(${ARG_PKG} ${ARG_SRV} "${ARG_IFLAGS}" "${ARG_MSG_DEPS}" ${ARG_GEN_OUTPUT_DIR} "${GENCPP_TEMPLATE_DIR}/srv.h.template")
+endmacro()
+
+macro(_generate_proto_cpp ARG_PKG ARG_MSG ARG_IFLAGS ARG_GEN_OUTPUT_DIR CC_FILE)
+  file(MAKE_DIRECTORY ${ARG_GEN_OUTPUT_DIR})
+
+  #Create input and output filenames
+  get_filename_component(MSG_NAME ${ARG_MSG} NAME)
+  get_filename_component(MSG_SHORT_NAME ${ARG_MSG} NAME_WE)
+
+  set(MSG_GENERATED_HEADER_NAME ${MSG_SHORT_NAME}.pb.h)
+  set(MSG_GENERATED_CC_NAME ${MSG_SHORT_NAME}.pb.cc)
+  set(GEN_OUTPUT_HEADER_FILE ${ARG_GEN_OUTPUT_DIR}/../${MSG_GENERATED_HEADER_NAME})
+  set(GEN_OUTPUT_CC_FILE ${ARG_GEN_OUTPUT_DIR}/../${MSG_GENERATED_CC_NAME})
+
+  assert(CATKIN_ENV)
+  message(STATUS "${GENPROTO_PY_BIN} ${ARG_IFLAGS} --cpp_out=${ARG_GEN_OUTPUT_DIR}/../ ${ARG_MSG}")
+  add_custom_command(OUTPUT ${GEN_OUTPUT_HEADER_FILE} ${GEN_OUTPUT_CC_FILE}
+    COMMAND ${GENCPP_PROTO_BIN}
+    ${ARG_IFLAGS}
+    --cpp_out=${ARG_GEN_OUTPUT_DIR}/../
+    ${ARG_MSG}
+    COMMENT "Generating C++ code from ${ARG_PKG}/${MSG_NAME}"
+    )
+  list(APPEND ALL_GEN_OUTPUT_FILES_cpp ${GEN_OUTPUT_HEADER_FILE})
+  list(APPEND ${CC_FILE} ${GEN_OUTPUT_CC_FILE})
+  gencpp_append_include_dirs()
+
+  install(
+    DIRECTORY ${ARG_GEN_OUTPUT_DIR}/../
+    DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}
+    FILES_MATCHING PATTERN "*.pb.h"
+  )
 endmacro()
 
 macro(_generate_module_cpp)
